@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { searchPodcasts, getPodcastEpisodes, PodcastSearchResult, PodcastEpisode, getImageUrl } from './api/saavn';
-import { getTopCharts, searchTracks, Track, getTopAlbums, searchAlbums, Album } from './api/itunes';
+import { getTopCharts, searchTracks, Track, getTopAlbums, searchAlbums, Album, searchPodcastsByCategory, PODCAST_CATEGORIES, ITunesPodcast } from './api/itunes';
 import PodcastCard from './components/PodcastCard';
 import EpisodeList from './components/EpisodeList';
 import AudioPlayer from './components/AudioPlayer';
@@ -8,6 +8,7 @@ import SongCard from './components/SongCard';
 import SongPlayer from './components/SongPlayer';
 import AlbumCard from './components/AlbumCard';
 import AlbumDetail from './components/AlbumDetail';
+import ITunesPodcastCard from './components/ITunesPodcastCard';
 
 type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail';
 type SearchType = 'podcasts' | 'songs' | 'albums';
@@ -40,11 +41,16 @@ export default function App() {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
 
-  // Load trending podcasts, top songs, and top albums on mount
+  // Categorized podcasts state
+  const [categorizedPodcasts, setCategorizedPodcasts] = useState<Record<string, ITunesPodcast[]>>({});
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  // Load trending podcasts, top songs, top albums, and categorized podcasts on mount
   useEffect(() => {
     loadTrending();
     loadTopSongs();
     loadTopAlbums();
+    loadCategorizedPodcasts();
   }, []);
 
   const loadTrending = async () => {
@@ -64,6 +70,30 @@ export default function App() {
     const albums = await getTopAlbums(10);
     setTopAlbums(albums);
     setIsLoadingAlbums(false);
+  };
+
+  const loadCategorizedPodcasts = async () => {
+    setIsLoadingCategories(true);
+    try {
+      // Fetch podcasts for all 12 categories in parallel
+      // ~9-10 podcasts per category to total ~110
+      const results = await Promise.all(
+        PODCAST_CATEGORIES.map(async (category) => {
+          const podcasts = await searchPodcastsByCategory(category.name, 10);
+          return { category: category.name, podcasts };
+        })
+      );
+
+      // Convert to a record for easy lookup
+      const podcastRecord: Record<string, ITunesPodcast[]> = {};
+      results.forEach(({ category, podcasts }) => {
+        podcastRecord[category] = podcasts;
+      });
+      setCategorizedPodcasts(podcastRecord);
+    } catch (error) {
+      console.error('Error loading categorized podcasts:', error);
+    }
+    setIsLoadingCategories(false);
   };
 
   const handleSearch = useCallback(async (query: string, type: SearchType) => {
@@ -411,20 +441,81 @@ export default function App() {
               </p>
             </div>
 
-            {/* Quick Search Categories */}
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-white mb-4">Explore Podcasts</h2>
-              <div className="flex flex-wrap gap-2">
-                {['Technology', 'Business', 'Comedy', 'Science', 'Health', 'Education', 'Sports', 'Music', 'News', 'True Crime', 'History', 'Culture'].map(category => (
-                  <button
-                    key={category}
-                    onClick={() => { setSearchQuery(category); setSearchType('podcasts'); handleSearch(category, 'podcasts'); }}
-                    className="px-4 py-2 bg-gray-800/50 hover:bg-purple-600/20 border border-gray-700/50 hover:border-purple-500/30 rounded-full text-sm text-gray-300 hover:text-purple-300 transition-all"
-                  >
-                    {category}
-                  </button>
-                ))}
+            {/* Categorized Podcasts - 110 podcasts across 12 categories */}
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </div>
+                  Explore Podcasts by Category
+                </h2>
+                <button
+                  onClick={loadCategorizedPodcasts}
+                  className="text-sm text-gray-400 hover:text-purple-400 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
               </div>
+
+              {isLoadingCategories ? (
+                <div className="space-y-8">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i}>
+                      <div className="h-6 bg-gray-700 rounded w-32 mb-4 animate-pulse" />
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {[...Array(5)].map((_, j) => (
+                          <div key={j} className="animate-pulse bg-gray-800/30 rounded-xl p-3">
+                            <div className="w-full aspect-square rounded-lg bg-gray-700 mb-3" />
+                            <div className="h-3 bg-gray-700 rounded w-3/4 mb-2" />
+                            <div className="h-3 bg-gray-700 rounded w-1/2" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {PODCAST_CATEGORIES.map((category) => {
+                    const podcasts = categorizedPodcasts[category.name] || [];
+                    if (podcasts.length === 0) return null;
+
+                    return (
+                      <div key={category.name}>
+                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                          <span className="text-2xl">{category.emoji}</span>
+                          {category.name}
+                          <span className="text-sm text-gray-500 font-normal">
+                            ({podcasts.length} podcasts)
+                          </span>
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {podcasts.map((podcast) => (
+                            <ITunesPodcastCard
+                              key={podcast.collectionId}
+                              podcast={podcast}
+                              onClick={() => window.open(podcast.collectionViewUrl, '_blank')}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500 mt-4 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                110+ podcasts across 12 categories • Data from Apple Podcasts • Click to open in Apple Podcasts
+              </p>
             </div>
 
             {/* Quick Song Search */}

@@ -153,3 +153,72 @@ export async function getAlbumTracks(collectionId: number): Promise<Track[]> {
     return [];
   }
 }
+
+export interface ITunesPodcast {
+  wrapperType: string;
+  kind: string;
+  collectionId: number;
+  trackId: number;
+  artistName: string;
+  collectionName: string;
+  trackName: string;
+  collectionCensoredName: string;
+  trackCensoredName: string;
+  collectionViewUrl: string;
+  feedUrl: string;
+  artworkUrl30: string;
+  artworkUrl60: string;
+  artworkUrl100: string;
+  collectionPrice: number;
+  trackPrice: number;
+  trackCount: number;
+  country: string;
+  currency: string;
+  contentAdvisoryRating: string;
+  artworkUrl600?: string;
+  genres: string[];
+  genreIds: string[];
+  releaseDate: string;
+  primaryGenreName?: string;
+}
+
+export async function searchPodcastsByCategory(category: string, limit = 10): Promise<ITunesPodcast[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent(category + ' podcast')}&media=podcast&limit=${limit}&entity=podcast`
+    );
+    const data = await response.json();
+    return (data.results || []) as ITunesPodcast[];
+  } catch (error) {
+    console.error(`Error fetching ${category} podcasts:`, error);
+    return [];
+  }
+}
+
+export async function searchAllPodcasts(query: string, limit = 20): Promise<ITunesPodcast[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent(query)}&media=podcast&limit=${limit}&entity=podcast`
+    );
+    const data = await response.json();
+    return (data.results || []) as ITunesPodcast[];
+  } catch (error) {
+    console.error('Error searching podcasts:', error);
+    return [];
+  }
+}
+
+export const PODCAST_CATEGORIES = [
+  { name: 'Technology', emoji: '💻', color: 'from-blue-600 to-cyan-600' },
+  { name: 'Business', emoji: '💼', color: 'from-amber-600 to-orange-600' },
+  { name: 'Comedy', emoji: '😂', color: 'from-yellow-500 to-red-500' },
+  { name: 'Science', emoji: '🔬', color: 'from-emerald-600 to-teal-600' },
+  { name: 'Health', emoji: '🏥', color: 'from-rose-500 to-pink-600' },
+  { name: 'Education', emoji: '📚', color: 'from-indigo-600 to-purple-600' },
+  { name: 'Sports', emoji: '⚽', color: 'from-green-600 to-emerald-600' },
+  { name: 'Music', emoji: '🎵', color: 'from-violet-600 to-fuchsia-600' },
+  { name: 'News', emoji: '📰', color: 'from-red-600 to-rose-600' },
+  { name: 'True Crime', emoji: '🔍', color: 'from-gray-700 to-gray-900' },
+  { name: 'History', emoji: '🏛️', color: 'from-amber-700 to-yellow-800' },
+  { name: 'Culture', emoji: '🎭', color: 'from-pink-600 to-purple-700' },
+] as const;
