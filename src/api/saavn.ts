@@ -173,13 +173,33 @@ export interface PlaylistSong {
 }
 
 export async function searchPlaylists(query: string, page = 0, limit = 10): Promise<Playlist[]> {
+  // Using iTunes API as fallback since saavn.dev is down
   try {
+    const ITUNES_BASE_URL = 'https://itunes.apple.com';
     const response = await fetch(
-      `${BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent(query)}&media=music&entity=album&limit=${limit}`
     );
     const data = await response.json();
-    if (data.success && data.data?.results) {
-      return data.data.results;
+    
+    if (data.results && data.results.length > 0) {
+      // Convert iTunes albums to Playlist format
+      const playlists: Playlist[] = data.results.map((item: any, index: number) => ({
+        id: `itunes-${item.collectionId || index}`,
+        name: item.collectionName || 'Unknown Playlist',
+        type: 'playlist',
+        image: [
+          { quality: '500x500', url: item.artworkUrl100?.replace('100x100', '500x500') || '' },
+          { quality: '150x150', url: item.artworkUrl100 || '' }
+        ],
+        url: item.collectionViewUrl || '',
+        songCount: item.trackCount || 0,
+        language: item.primaryGenreName || 'Unknown',
+        description: `Curated playlist featuring ${item.artistName}`,
+        artists: {
+          primary: [{ name: item.artistName || 'Unknown Artist', id: `artist-${index}` }]
+        }
+      }));
+      return playlists;
     }
     return [];
   } catch (error) {
@@ -189,17 +209,36 @@ export async function searchPlaylists(query: string, page = 0, limit = 10): Prom
 }
 
 export async function getTopPlaylists(limit = 10): Promise<Playlist[]> {
+  // Since saavn.dev API is down, using iTunes API as fallback
   try {
-    // Search for popular playlists using trending terms
-    const queries = ['top hits', 'bollywood hits', 'trending', 'popular'];
+    const ITUNES_BASE_URL = 'https://itunes.apple.com';
+    const queries = ['top hits', 'popular music', 'trending', 'best of', 'greatest hits'];
     const randomQuery = queries[Math.floor(Math.random() * queries.length)];
     
     const response = await fetch(
-      `${BASE_URL}/search/playlists?query=${encodeURIComponent(randomQuery)}&page=0&limit=${limit}`
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent(randomQuery)}&media=music&entity=album&limit=${limit}`
     );
     const data = await response.json();
-    if (data.success && data.data?.results) {
-      return data.data.results;
+    
+    if (data.results && data.results.length > 0) {
+      // Convert iTunes albums to Playlist format
+      const playlists: Playlist[] = data.results.map((item: any, index: number) => ({
+        id: `itunes-${item.collectionId || index}`,
+        name: item.collectionName || 'Unknown Playlist',
+        type: 'playlist',
+        image: [
+          { quality: '500x500', url: item.artworkUrl100?.replace('100x100', '500x500') || '' },
+          { quality: '150x150', url: item.artworkUrl100 || '' }
+        ],
+        url: item.collectionViewUrl || '',
+        songCount: item.trackCount || 0,
+        language: item.primaryGenreName || 'Unknown',
+        description: `Curated playlist featuring ${item.artistName}`,
+        artists: {
+          primary: [{ name: item.artistName || 'Unknown Artist', id: `artist-${index}` }]
+        }
+      }));
+      return playlists;
     }
     return [];
   } catch (error) {
@@ -210,6 +249,64 @@ export async function getTopPlaylists(limit = 10): Promise<Playlist[]> {
 
 export async function getPlaylistDetails(id: string): Promise<{ playlist: Playlist; songs: PlaylistSong[] } | null> {
   try {
+    // For iTunes-based playlists, extract the collection ID
+    if (id.startsWith('itunes-')) {
+      const collectionId = id.replace('itunes-', '');
+      const ITUNES_BASE_URL = 'https://itunes.apple.com';
+      
+      // First, get the album/playlist info
+      const lookupResponse = await fetch(`${ITUNES_BASE_URL}/lookup?id=${collectionId}&entity=song`);
+      const lookupData = await lookupResponse.json();
+      
+      if (lookupData.results && lookupData.results.length > 0) {
+        const playlistInfo = lookupData.results[0];
+        const songs: PlaylistSong[] = lookupData.results
+          .filter((item: any) => item.wrapperType === 'track')
+          .map((item: any, index: number) => ({
+            id: `song-${item.trackId || index}`,
+            name: item.trackName || 'Unknown Song',
+            type: 'song',
+            year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : undefined,
+            duration: item.trackTimeMillis ? Math.floor(item.trackTimeMillis / 1000) : undefined,
+            language: item.primaryGenreName || 'Unknown',
+            url: item.trackViewUrl || '',
+            image: [
+              { quality: '500x500', url: item.artworkUrl100?.replace('100x100', '500x500') || '' },
+              { quality: '150x150', url: item.artworkUrl100 || '' }
+            ],
+            downloadUrl: item.previewUrl ? [{ quality: '320kbps', url: item.previewUrl }] : [],
+            artists: {
+              primary: [{ name: item.artistName || 'Unknown Artist', id: `artist-${index}` }],
+              all: [{ name: item.artistName || 'Unknown Artist', id: `artist-${index}` }]
+            },
+            album: {
+              name: item.collectionName || 'Unknown Album',
+              url: item.collectionViewUrl || ''
+            }
+          }));
+        
+        const playlist: Playlist = {
+          id: id,
+          name: playlistInfo.collectionName || 'Unknown Playlist',
+          type: 'playlist',
+          image: [
+            { quality: '500x500', url: playlistInfo.artworkUrl100?.replace('100x100', '500x500') || '' },
+            { quality: '150x150', url: playlistInfo.artworkUrl100 || '' }
+          ],
+          url: playlistInfo.collectionViewUrl || '',
+          songCount: songs.length,
+          language: playlistInfo.primaryGenreName || 'Unknown',
+          description: `Curated playlist featuring ${playlistInfo.artistName}`,
+          artists: {
+            primary: [{ name: playlistInfo.artistName || 'Unknown Artist', id: 'artist-0' }]
+          }
+        };
+        
+        return { playlist, songs };
+      }
+    }
+    
+    // Fallback to saavn.dev API (if it comes back online)
     const response = await fetch(`${BASE_URL}/playlists/${id}`);
     const data = await response.json();
     if (data.success && data.data) {
