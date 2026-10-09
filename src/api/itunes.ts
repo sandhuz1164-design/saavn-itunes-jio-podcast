@@ -53,6 +53,38 @@ export async function getTopTracks(limit = 10): Promise<Track[]> {
   }
 }
 
+export interface Artist {
+  artistId: number;
+  artistName: string;
+  artistLinkUrl: string;
+  artworkUrl100?: string;
+  primaryGenreName?: string;
+}
+
+export async function getTopArtists(limit = 10): Promise<Artist[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent('popular artists')}&media=music&entity=allArtist&limit=${limit}`
+    );
+    const data: ITunesSearchResponse = await response.json();
+    
+    if (data.results && data.results.length > 0) {
+      // Deduplicate artists by artistId
+      const seen = new Set<number>();
+      const uniqueArtists = data.results.filter((item: any) => {
+        if (seen.has(item.artistId)) return false;
+        seen.add(item.artistId);
+        return true;
+      }).slice(0, limit);
+      return uniqueArtists as any;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching top artists:', error);
+    return [];
+  }
+}
+
 export async function getTopCharts(limit = 10): Promise<Track[]> {
   // Get popular tracks by searching for well-known artists and hits
   try {

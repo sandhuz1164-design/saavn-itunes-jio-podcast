@@ -12,6 +12,7 @@ import ITunesPodcastCard from './components/ITunesPodcastCard';
 import ITunesPodcastDetail from './components/ITunesPodcastDetail';
 import PlaylistCard from './components/PlaylistCard';
 import PlaylistDetail from './components/PlaylistDetail';
+import RightSidebar from './components/RightSidebar';
 
 type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail' | 'playlist-detail';
 type SearchType = 'podcasts' | 'songs' | 'albums' | 'playlists';
@@ -33,10 +34,8 @@ export default function App() {
   const [hasMoreEpisodes, setHasMoreEpisodes] = useState(true);
   
   // Song state
-  const [topSongs, setTopSongs] = useState<Track[]>([]);
   const [currentSong, setCurrentSong] = useState<Track | null>(null);
   const [showSongPlayer, setShowSongPlayer] = useState(false);
-  const [isLoadingSongs, setIsLoadingSongs] = useState(false);
   
   // Album state
   const [topAlbums, setTopAlbums] = useState<Album[]>([]);
@@ -61,10 +60,9 @@ export default function App() {
   const [playlistQueue, setPlaylistQueue] = useState<PlaylistSong[]>([]);
   const [playlistQueueIndex, setPlaylistQueueIndex] = useState(0);
 
-  // Load trending podcasts, top songs, top albums, categorized podcasts, and playlists on mount
+  // Load trending podcasts, top albums, categorized podcasts, and playlists on mount
   useEffect(() => {
     loadTrending();
-    loadTopSongs();
     loadTopAlbums();
     loadCategorizedPodcasts();
     loadTopPlaylists();
@@ -75,12 +73,7 @@ export default function App() {
     setTrendingPodcasts(results);
   };
 
-  const loadTopSongs = async () => {
-    setIsLoadingSongs(true);
-    const songs = await getTopCharts(10);
-    setTopSongs(songs);
-    setIsLoadingSongs(false);
-  };
+
 
   const loadTopAlbums = async () => {
     setIsLoadingAlbums(true);
@@ -404,6 +397,9 @@ export default function App() {
 
       {/* Main Content */}
       <main className={`max-w-7xl mx-auto px-4 py-6 ${playerActive ? 'pb-32' : 'pb-6'}`}>
+        <div className="flex gap-6">
+          {/* Left/Main Content Area */}
+          <div className="flex-1 min-w-0">
         {/* Home View */}
         {view === 'home' && (
           <div>
@@ -545,75 +541,6 @@ export default function App() {
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Top 10 Songs Section */}
-            <div className="mb-12">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                    </svg>
-                  </div>
-                  Top 10 Songs
-                </h2>
-                <button
-                  onClick={loadTopSongs}
-                  className="text-sm text-gray-400 hover:text-green-400 transition-colors flex items-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </button>
-              </div>
-
-              <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl border border-gray-700/30 overflow-hidden">
-                {isLoadingSongs ? (
-                  <div className="p-4 space-y-3">
-                    {[...Array(10)].map((_, i) => (
-                      <div key={i} className="animate-pulse flex items-center gap-4 p-3">
-                        <div className="w-8 h-4 bg-gray-700 rounded" />
-                        <div className="w-12 h-12 rounded-lg bg-gray-700" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 bg-gray-700 rounded w-1/2" />
-                          <div className="h-3 bg-gray-700 rounded w-1/3" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : topSongs.length > 0 ? (
-                  <div className="divide-y divide-gray-800/50">
-                    {topSongs.map((track, index) => (
-                      <SongCard
-                        key={track.trackId}
-                        track={track}
-                        index={index}
-                        isPlaying={currentSong?.trackId === track.trackId && showSongPlayer}
-                        onClick={() => handlePlaySong(track)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-gray-400">
-                    <p>Unable to load songs. Please try again.</p>
-                    <button
-                      onClick={loadTopSongs}
-                      className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white transition-colors"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                </svg>
-                30-second previews from Apple Music • Click to play • Links open in Apple Music
-              </p>
             </div>
 
             {/* Top 10 Albums Section */}
@@ -1173,6 +1100,15 @@ export default function App() {
             isPlaying={showPlaylistPlayer}
           />
         )}
+          </div>
+
+          {/* Right Sidebar */}
+          <RightSidebar
+            onPlaySong={handlePlaySong}
+            currentSong={currentSong}
+            isPlaying={showSongPlayer}
+          />
+        </div>
       </main>
 
       {/* Podcast Audio Player */}
