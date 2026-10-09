@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { searchPodcasts, getPodcastEpisodes, PodcastSearchResult, PodcastEpisode, getImageUrl, getTopPlaylists, searchPlaylists, Playlist, PlaylistSong } from './api/saavn';
 import { getTopCharts, searchTracks, Track, getTopAlbums, searchAlbums, Album, searchPodcastsByCategory, PODCAST_CATEGORIES, ITunesPodcast } from './api/itunes';
+import { RadioStation } from './api/radio';
 import PodcastCard from './components/PodcastCard';
 import EpisodeList from './components/EpisodeList';
 import AudioPlayer from './components/AudioPlayer';
@@ -13,8 +14,11 @@ import ITunesPodcastDetail from './components/ITunesPodcastDetail';
 import PlaylistCard from './components/PlaylistCard';
 import PlaylistDetail from './components/PlaylistDetail';
 import RightSidebar from './components/RightSidebar';
+import Sidebar from './components/Sidebar';
+import Radio from './components/Radio';
+import RadioPlayer from './components/RadioPlayer';
 
-type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail' | 'playlist-detail';
+export type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail' | 'playlist-detail' | 'radio';
 type SearchType = 'podcasts' | 'songs' | 'albums' | 'playlists';
 
 export default function App() {
@@ -60,6 +64,13 @@ export default function App() {
   const [showPlaylistPlayer, setShowPlaylistPlayer] = useState(false);
   const [playlistQueue, setPlaylistQueue] = useState<PlaylistSong[]>([]);
   const [playlistQueueIndex, setPlaylistQueueIndex] = useState(0);
+
+  // Radio state
+  const [currentStation, setCurrentStation] = useState<RadioStation | null>(null);
+  const [showRadioPlayer, setShowRadioPlayer] = useState(false);
+
+  // Sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Load trending podcasts, top albums, categorized podcasts, and playlists on mount
   useEffect(() => {
@@ -300,19 +311,63 @@ export default function App() {
     setPlaylistQueueIndex(0);
   };
 
+  // Radio handlers
+  const handlePlayStation = (station: RadioStation) => {
+    setCurrentStation(station);
+    setShowRadioPlayer(true);
+    // Stop other players
+    setShowPlayer(false);
+    setShowSongPlayer(false);
+    setShowPlaylistPlayer(false);
+    setCurrentEpisode(null);
+    setCurrentSong(null);
+    setCurrentPlaylistSong(null);
+  };
+
+  const handleCloseRadioPlayer = () => {
+    setShowRadioPlayer(false);
+    setCurrentStation(null);
+  };
+
+  // Sidebar navigation
+  const handleSidebarNavigate = (newView: View) => {
+    setView(newView);
+    setSidebarOpen(false);
+  };
+
   const playerActive = showPlayer || showSongPlayer || showPlaylistPlayer;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-xl border-b border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-4">
-            {/* Logo */}
-            <button
-              onClick={() => { setView('home'); setSearchQuery(''); setSearchResults([]); setSongResults([]); }}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-            >
+      {/* Left Sidebar */}
+      <Sidebar
+        currentView={view}
+        onNavigate={handleSidebarNavigate}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="fixed top-4 left-4 z-30 lg:hidden w-10 h-10 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 flex items-center justify-center text-white hover:bg-gray-700 transition-colors"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Main Content with left margin for sidebar */}
+      <div className="lg:ml-64">
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-xl border-b border-gray-800/50">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-4">
+              {/* Logo */}
+              <button
+                onClick={() => { setView('home'); setSearchQuery(''); setSearchResults([]); setSongResults([]); }}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h2v-2.06A9 9 0 0 0 21 12v-2h-2z"/>
@@ -1119,6 +1174,15 @@ export default function App() {
             isPlaying={showPlaylistPlayer}
           />
         )}
+
+        {/* Radio View */}
+        {view === 'radio' && (
+          <Radio
+            onPlayStation={handlePlayStation}
+            currentStation={currentStation}
+            isPlaying={showRadioPlayer}
+          />
+        )}
           </div>
 
           {/* Right Sidebar */}
@@ -1165,6 +1229,15 @@ export default function App() {
           onEnded={handleSongEnded}
         />
       )}
+
+      {/* Radio Player */}
+      {showRadioPlayer && currentStation && (
+        <RadioPlayer
+          station={currentStation}
+          onClose={handleCloseRadioPlayer}
+        />
+      )}
+      </div>
     </div>
   );
 }
