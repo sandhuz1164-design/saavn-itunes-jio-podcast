@@ -58,6 +58,8 @@ export default function App() {
   const [playlistResults, setPlaylistResults] = useState<Playlist[]>([]);
   const [currentPlaylistSong, setCurrentPlaylistSong] = useState<PlaylistSong | null>(null);
   const [showPlaylistPlayer, setShowPlaylistPlayer] = useState(false);
+  const [playlistQueue, setPlaylistQueue] = useState<PlaylistSong[]>([]);
+  const [playlistQueueIndex, setPlaylistQueueIndex] = useState(0);
 
   // Load trending podcasts, top songs, top albums, categorized podcasts, and playlists on mount
   useEffect(() => {
@@ -259,9 +261,38 @@ export default function App() {
     setCurrentSong(null);
   };
 
+  const handlePlayAll = (songs: PlaylistSong[], startIndex: number) => {
+    setPlaylistQueue(songs);
+    setPlaylistQueueIndex(startIndex);
+    if (songs[startIndex]) {
+      setCurrentPlaylistSong(songs[startIndex]);
+      setShowPlaylistPlayer(true);
+      // Stop other players
+      setShowPlayer(false);
+      setShowSongPlayer(false);
+      setCurrentEpisode(null);
+      setCurrentSong(null);
+    }
+  };
+
+  const handleSongEnded = () => {
+    // Auto-advance to next song in queue
+    if (playlistQueue.length > 0 && playlistQueueIndex < playlistQueue.length - 1) {
+      const nextIndex = playlistQueueIndex + 1;
+      setPlaylistQueueIndex(nextIndex);
+      setCurrentPlaylistSong(playlistQueue[nextIndex]);
+    } else {
+      // Queue finished
+      setPlaylistQueue([]);
+      setPlaylistQueueIndex(0);
+    }
+  };
+
   const handleClosePlaylistPlayer = () => {
     setShowPlaylistPlayer(false);
     setCurrentPlaylistSong(null);
+    setPlaylistQueue([]);
+    setPlaylistQueueIndex(0);
   };
 
   const playerActive = showPlayer || showSongPlayer || showPlaylistPlayer;
@@ -390,18 +421,23 @@ export default function App() {
 
             {/* Top 10 Playlists Section */}
             <div className="mb-12">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
-                    </svg>
-                  </div>
-                  Top 10 Playlists
-                </h2>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+                      </svg>
+                    </div>
+                    <span className="bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
+                      Featured Playlists
+                    </span>
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1 ml-13">Curated collections for every mood</p>
+                </div>
                 <button
                   onClick={loadTopPlaylists}
-                  className="text-sm text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1"
+                  className="text-sm text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-full border border-gray-700/50"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -410,42 +446,105 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {isLoadingPlaylists ? (
-                  [...Array(10)].map((_, i) => (
-                    <div key={i} className="animate-pulse bg-gray-800/30 rounded-xl p-4">
-                      <div className="w-full aspect-square rounded-lg bg-gray-700 mb-3" />
-                      <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-gray-700 rounded w-1/2" />
+              {isLoadingPlaylists ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {[...Array(10)].map((_, i) => (
+                    <div key={i} className="animate-pulse rounded-2xl overflow-hidden">
+                      <div className="aspect-square bg-gray-700" />
+                      <div className="bg-gray-800 p-4 space-y-2">
+                        <div className="h-4 bg-gray-700 rounded w-3/4" />
+                        <div className="h-3 bg-gray-700 rounded w-1/2" />
+                      </div>
                     </div>
-                  ))
-                ) : topPlaylists.length > 0 ? (
-                  topPlaylists.map((playlist) => (
-                    <PlaylistCard
-                      key={playlist.id}
-                      playlist={playlist}
-                      onClick={() => handlePlaylistClick(playlist)}
-                    />
-                  ))
-                ) : (
-                  <div className="col-span-full p-8 text-center text-gray-400">
-                    <p>Unable to load playlists. Please try again.</p>
+                  ))}
+                </div>
+              ) : topPlaylists.length > 0 ? (
+                <>
+                  {/* Featured Playlist Hero */}
+                  {topPlaylists[0] && (
                     <button
-                      onClick={loadTopPlaylists}
-                      className="mt-3 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm text-white transition-colors"
+                      onClick={() => handlePlaylistClick(topPlaylists[0])}
+                      className="group relative w-full rounded-3xl overflow-hidden mb-6 text-left"
                     >
-                      Retry
+                      <div className="aspect-[3/1] md:aspect-[4/1] relative">
+                        {getImageUrl(topPlaylists[0].image, '500x500') ? (
+                          <img
+                            src={getImageUrl(topPlaylists[0].image, '500x500')}
+                            alt={topPlaylists[0].name}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-orange-500 via-red-500 to-purple-600" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                        
+                        <div className="absolute inset-0 p-6 md:p-10 flex items-end">
+                          <div className="flex-1">
+                            <div className="inline-block bg-orange-600/80 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
+                              <span className="text-xs font-bold text-white uppercase tracking-wider">⭐ Featured</span>
+                            </div>
+                            <h3 className="text-3xl md:text-5xl font-black text-white mb-2 drop-shadow-2xl">
+                              {topPlaylists[0].name}
+                            </h3>
+                            {topPlaylists[0].description && (
+                              <p className="text-white/80 text-sm md:text-base mb-4 max-w-xl line-clamp-2">
+                                {topPlaylists[0].description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-orange-600 shadow-xl shadow-orange-500/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                              <div className="flex items-center gap-3 text-white/80 text-sm">
+                                {topPlaylists[0].songCount && (
+                                  <span className="flex items-center gap-1">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                    </svg>
+                                    {topPlaylists[0].songCount} songs
+                                  </span>
+                                )}
+                                {topPlaylists[0].language && (
+                                  <span>• {topPlaylists[0].language}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </button>
-                  </div>
-                )}
-              </div>
+                  )}
 
-              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                </svg>
-                Click on a playlist to view songs • Data from JioSaavn
-              </p>
+                  {/* Remaining Playlists Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {topPlaylists.slice(1).map((playlist, index) => (
+                      <PlaylistCard
+                        key={playlist.id}
+                        playlist={playlist}
+                        index={index + 1}
+                        onClick={() => handlePlaylistClick(playlist)}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="p-12 text-center text-gray-400 bg-gradient-to-br from-gray-800/30 to-gray-900/30 rounded-2xl border border-gray-700/30">
+                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
+                  </svg>
+                  <p className="text-lg font-medium">Unable to load playlists</p>
+                  <p className="text-sm mt-1 mb-4">Please check your connection and try again</p>
+                  <button
+                    onClick={loadTopPlaylists}
+                    className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-full text-sm font-medium text-white transition-all shadow-lg shadow-orange-500/30"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Top 10 Songs Section */}
@@ -918,10 +1017,11 @@ export default function App() {
                     </p>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {playlistResults.map((playlist) => (
+                    {playlistResults.map((playlist, index) => (
                       <PlaylistCard
                         key={playlist.id}
                         playlist={playlist}
+                        index={index}
                         onClick={() => handlePlaylistClick(playlist)}
                       />
                     ))}
@@ -1068,6 +1168,7 @@ export default function App() {
             playlist={selectedPlaylist}
             onBack={handleBack}
             onPlaySong={handlePlayPlaylistSong}
+            onPlayAll={handlePlayAll}
             currentSong={currentPlaylistSong}
             isPlaying={showPlaylistPlayer}
           />
@@ -1106,6 +1207,7 @@ export default function App() {
             artists: currentPlaylistSong.artists,
           }}
           onClose={handleClosePlaylistPlayer}
+          onEnded={handleSongEnded}
         />
       )}
     </div>

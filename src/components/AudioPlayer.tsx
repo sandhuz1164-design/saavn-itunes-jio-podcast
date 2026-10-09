@@ -4,9 +4,10 @@ import { PodcastEpisode, getImageUrl, getDownloadUrl, formatDuration } from '../
 interface AudioPlayerProps {
   episode: PodcastEpisode | null;
   onClose: () => void;
+  onEnded?: () => void;
 }
 
-export default function AudioPlayer({ episode, onClose }: AudioPlayerProps) {
+export default function AudioPlayer({ episode, onClose, onEnded }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -40,7 +41,10 @@ export default function AudioPlayer({ episode, onClose }: AudioPlayerProps) {
       setDuration(audio.duration);
       setIsLoading(false);
     };
-    const handleEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      if (onEnded) onEnded();
+    };
     const handleWaiting = () => setIsLoading(true);
     const handleCanPlay = () => setIsLoading(false);
 
