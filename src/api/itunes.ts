@@ -88,3 +88,68 @@ export function getHighResArtwork(url: string, size = 600): string {
   // Replace the size in the artwork URL for higher resolution
   return url.replace(/\/\d+x\d+/, `/${size}x${size}`);
 }
+
+export interface Album {
+  collectionId: number;
+  collectionName: string;
+  artistName: string;
+  artworkUrl60: string;
+  artworkUrl100: string;
+  collectionPrice: number;
+  trackCount: number;
+  releaseDate: string;
+  primaryGenreName: string;
+  collectionViewUrl: string;
+  copyright?: string;
+}
+
+export async function getTopAlbums(limit = 10): Promise<Album[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent('popular albums')}&media=music&entity=album&limit=${limit}&sort=recent`
+    );
+    const data: ITunesSearchResponse = await response.json();
+    
+    if (data.results && data.results.length > 0) {
+      return data.results as any;
+    }
+    
+    // Fallback
+    const fallback = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent('top albums 2024')}&media=music&entity=album&limit=${limit}`
+    );
+    const fallbackData: ITunesSearchResponse = await fallback.json();
+    return (fallbackData.results || []) as any;
+  } catch (error) {
+    console.error('Error fetching top albums:', error);
+    return [];
+  }
+}
+
+export async function searchAlbums(query: string, limit = 10): Promise<Album[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/search?term=${encodeURIComponent(query)}&media=music&entity=album&limit=${limit}`
+    );
+    const data: ITunesSearchResponse = await response.json();
+    return (data.results || []) as any;
+  } catch (error) {
+    console.error('Error searching albums:', error);
+    return [];
+  }
+}
+
+export async function getAlbumTracks(collectionId: number): Promise<Track[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/lookup?id=${collectionId}&entity=song`
+    );
+    const data = await response.json();
+    
+    // Filter out the album itself and return only tracks
+    return data.results?.filter((item: any) => item.wrapperType === 'track') || [];
+  } catch (error) {
+    console.error('Error fetching album tracks:', error);
+    return [];
+  }
+}

@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { searchPodcasts, getPodcastEpisodes, PodcastSearchResult, PodcastEpisode, getImageUrl } from './api/saavn';
-import { getTopCharts, searchTracks, Track } from './api/itunes';
+import { getTopCharts, searchTracks, Track, getTopAlbums, searchAlbums, Album } from './api/itunes';
 import PodcastCard from './components/PodcastCard';
 import EpisodeList from './components/EpisodeList';
 import AudioPlayer from './components/AudioPlayer';
 import SongCard from './components/SongCard';
 import SongPlayer from './components/SongPlayer';
+import AlbumCard from './components/AlbumCard';
+import AlbumDetail from './components/AlbumDetail';
 
-type View = 'home' | 'search' | 'podcast-detail' | 'songs';
-type SearchType = 'podcasts' | 'songs';
+type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail';
+type SearchType = 'podcasts' | 'songs' | 'albums';
 
 export default function App() {
   const [view, setView] = useState<View>('home');
@@ -31,11 +33,18 @@ export default function App() {
   const [currentSong, setCurrentSong] = useState<Track | null>(null);
   const [showSongPlayer, setShowSongPlayer] = useState(false);
   const [isLoadingSongs, setIsLoadingSongs] = useState(false);
+  
+  // Album state
+  const [topAlbums, setTopAlbums] = useState<Album[]>([]);
+  const [albumResults, setAlbumResults] = useState<Album[]>([]);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
 
-  // Load trending podcasts and top songs on mount
+  // Load trending podcasts, top songs, and top albums on mount
   useEffect(() => {
     loadTrending();
     loadTopSongs();
+    loadTopAlbums();
   }, []);
 
   const loadTrending = async () => {
@@ -50,10 +59,18 @@ export default function App() {
     setIsLoadingSongs(false);
   };
 
+  const loadTopAlbums = async () => {
+    setIsLoadingAlbums(true);
+    const albums = await getTopAlbums(10);
+    setTopAlbums(albums);
+    setIsLoadingAlbums(false);
+  };
+
   const handleSearch = useCallback(async (query: string, type: SearchType) => {
     if (!query.trim()) {
       setSearchResults([]);
       setSongResults([]);
+      setAlbumResults([]);
       return;
     }
     setIsSearching(true);
@@ -64,10 +81,17 @@ export default function App() {
       const results = await searchPodcasts(query, 0, 20);
       setSearchResults(results);
       setSongResults([]);
-    } else {
+      setAlbumResults([]);
+    } else if (type === 'songs') {
       const results = await searchTracks(query, 10);
       setSongResults(results);
       setSearchResults([]);
+      setAlbumResults([]);
+    } else if (type === 'albums') {
+      const results = await searchAlbums(query, 10);
+      setAlbumResults(results);
+      setSearchResults([]);
+      setSongResults([]);
     }
     setIsSearching(false);
   }, []);
@@ -121,15 +145,24 @@ export default function App() {
     setCurrentSong(null);
   };
 
+  const handleAlbumClick = (album: Album) => {
+    setSelectedAlbum(album);
+    setView('album-detail');
+  };
+
   const handleBack = () => {
     if (view === 'podcast-detail') {
       setView('search');
       setSelectedPodcast(null);
+    } else if (view === 'album-detail') {
+      setView('search');
+      setSelectedAlbum(null);
     } else if (view === 'search') {
       setView('home');
       setSearchQuery('');
       setSearchResults([]);
       setSongResults([]);
+      setAlbumResults([]);
     } else if (view === 'songs') {
       setView('home');
     }
@@ -205,6 +238,14 @@ export default function App() {
               >
                 Songs
               </button>
+              <button
+                onClick={() => setSearchType('albums')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  searchType === 'albums' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Albums
+              </button>
             </div>
 
             {/* Search button */}
@@ -213,6 +254,8 @@ export default function App() {
               className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 searchType === 'songs' 
                   ? 'bg-green-600 hover:bg-green-500' 
+                  : searchType === 'albums'
+                  ? 'bg-blue-600 hover:bg-blue-500'
                   : 'bg-purple-600 hover:bg-purple-500'
               }`}
             >
@@ -231,11 +274,11 @@ export default function App() {
             <div className="mb-8 text-center">
               <h1 className="text-3xl sm:text-4xl font-bold mb-3">
                 <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-green-400 bg-clip-text text-transparent">
-                  Music & Podcasts
+                  Music, Albums & Podcasts
                 </span>
               </h1>
               <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                Discover podcasts from JioSaavn and top songs from Apple Music. Search, browse, and enjoy audio content all in one place.
+                Discover podcasts from JioSaavn, top songs and albums from Apple Music. Search, browse, and enjoy audio content all in one place.
               </p>
             </div>
 
@@ -308,6 +351,66 @@ export default function App() {
               </p>
             </div>
 
+            {/* Top 10 Albums Section */}
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
+                    </svg>
+                  </div>
+                  Top 10 Albums
+                </h2>
+                <button
+                  onClick={loadTopAlbums}
+                  className="text-sm text-gray-400 hover:text-blue-400 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {isLoadingAlbums ? (
+                  [...Array(10)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-gray-800/30 rounded-xl p-4">
+                      <div className="w-full aspect-square rounded-lg bg-gray-700 mb-3" />
+                      <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-gray-700 rounded w-1/2" />
+                    </div>
+                  ))
+                ) : topAlbums.length > 0 ? (
+                  topAlbums.map((album) => (
+                    <AlbumCard
+                      key={album.collectionId}
+                      album={album}
+                      onClick={() => handleAlbumClick(album)}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full p-8 text-center text-gray-400">
+                    <p>Unable to load albums. Please try again.</p>
+                    <button
+                      onClick={loadTopAlbums}
+                      className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                Click on an album to view tracks • Data from Apple Music
+              </p>
+            </div>
+
             {/* Quick Search Categories */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold text-white mb-4">Explore Podcasts</h2>
@@ -340,6 +443,22 @@ export default function App() {
               </div>
             </div>
 
+            {/* Quick Album Search */}
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-white mb-4">Search Albums</h2>
+              <div className="flex flex-wrap gap-2">
+                {['Midnights', 'After Hours', 'Divide', 'Thriller', '21', '1989', 'Lover', 'Future Nostalgia', 'Beauty Behind the Madness', 'Starboy'].map(album => (
+                  <button
+                    key={album}
+                    onClick={() => { setSearchQuery(album); setSearchType('albums'); handleSearch(album, 'albums'); }}
+                    className="px-4 py-2 bg-gray-800/50 hover:bg-blue-600/20 border border-gray-700/50 hover:border-blue-500/30 rounded-full text-sm text-gray-300 hover:text-blue-300 transition-all"
+                  >
+                    💿 {album}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Trending Podcasts */}
             {trendingPodcasts.length > 0 && (
               <div>
@@ -362,7 +481,7 @@ export default function App() {
             )}
 
             {/* Info Section */}
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-6 rounded-2xl bg-gradient-to-r from-purple-900/20 to-gray-900/50 border border-purple-800/30">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
@@ -387,6 +506,19 @@ export default function App() {
                 </div>
                 <p className="text-gray-400 text-sm">
                   Top songs with 30-second previews. Search your favorite artists and listen to previews. Links to full tracks on Apple Music.
+                </p>
+              </div>
+              <div className="p-6 rounded-2xl bg-gradient-to-r from-blue-900/20 to-gray-900/50 border border-blue-800/30">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">Apple Music Albums</h3>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  Browse top albums with full track listings. Click on any album to explore its tracks and play previews.
                 </p>
               </div>
             </div>
@@ -428,15 +560,24 @@ export default function App() {
               >
                 Songs
               </button>
+              <button
+                onClick={() => handleSearch(searchQuery, 'albums')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  searchType === 'albums' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'
+                }`}
+              >
+                Albums
+              </button>
             </div>
 
             {isSearching ? (
-              searchType === 'podcasts' ? (
+              searchType === 'podcasts' || searchType === 'albums' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {[...Array(10)].map((_, i) => (
                     <div key={i} className="animate-pulse bg-gray-800/30 rounded-xl p-4">
                       <div className="w-full aspect-square rounded-lg bg-gray-700 mb-3" />
-                      <div className="h-4 bg-gray-700 rounded w-3/4" />
+                      <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-gray-700 rounded w-1/2" />
                     </div>
                   ))}
                 </div>
@@ -493,6 +634,33 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            ) : searchType === 'albums' ? (
+              albumResults.length > 0 ? (
+                <div>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-400">
+                      Found {albumResults.length} albums
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {albumResults.map((album) => (
+                      <AlbumCard
+                        key={album.collectionId}
+                        album={album}
+                        onClick={() => handleAlbumClick(album)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <svg className="w-20 h-20 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z" />
+                  </svg>
+                  <p className="text-xl text-gray-400">No albums found</p>
+                  <p className="text-gray-500 mt-2">Try searching for a different artist or album</p>
+                </div>
+              )
             ) : (
               <div className="text-center py-16">
                 <svg className="w-20 h-20 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -598,6 +766,17 @@ export default function App() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Album Detail View */}
+        {view === 'album-detail' && selectedAlbum && (
+          <AlbumDetail
+            album={selectedAlbum}
+            onBack={handleBack}
+            onPlayTrack={handlePlaySong}
+            currentTrack={currentSong}
+            isPlaying={showSongPlayer}
+          />
         )}
       </main>
 
