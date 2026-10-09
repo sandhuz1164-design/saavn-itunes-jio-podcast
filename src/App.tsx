@@ -17,6 +17,7 @@ import Sidebar from './components/Sidebar';
 import Radio from './components/Radio';
 import RadioPlayer from './components/RadioPlayer';
 import ArtistCard from './components/ArtistCard';
+import Footer from './components/Footer';
 import { getTopArtists, Artist } from './api/itunes';
 
 export type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail' | 'playlist-detail' | 'radio';
@@ -1248,6 +1249,9 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Podcast Audio Player */}
       {showPlayer && (
