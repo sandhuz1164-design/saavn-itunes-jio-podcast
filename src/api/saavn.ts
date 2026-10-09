@@ -136,3 +136,91 @@ export function formatDuration(seconds: number | null | undefined): string {
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+export interface Playlist {
+  id: string;
+  name: string;
+  type: string;
+  image: Array<{ quality: string; url: string }>;
+  url: string;
+  songCount?: number;
+  language?: string;
+  description?: string;
+  explicitContent?: boolean;
+  artists?: {
+    primary: Array<{ name: string; id: string }>;
+  };
+}
+
+export interface PlaylistSong {
+  id: string;
+  name: string;
+  type: string;
+  year?: number;
+  duration?: number;
+  language?: string;
+  url: string;
+  image: Array<{ quality: string; url: string }>;
+  downloadUrl?: Array<{ quality: string; url: string }>;
+  artists?: {
+    primary: Array<{ name: string; id: string }>;
+    all: Array<{ name: string; id: string }>;
+  };
+  album?: {
+    name: string;
+    url: string;
+  };
+}
+
+export async function searchPlaylists(query: string, page = 0, limit = 10): Promise<Playlist[]> {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/search/playlists?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+    );
+    const data = await response.json();
+    if (data.success && data.data?.results) {
+      return data.data.results;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error searching playlists:', error);
+    return [];
+  }
+}
+
+export async function getTopPlaylists(limit = 10): Promise<Playlist[]> {
+  try {
+    // Search for popular playlists using trending terms
+    const queries = ['top hits', 'bollywood hits', 'trending', 'popular'];
+    const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+    
+    const response = await fetch(
+      `${BASE_URL}/search/playlists?query=${encodeURIComponent(randomQuery)}&page=0&limit=${limit}`
+    );
+    const data = await response.json();
+    if (data.success && data.data?.results) {
+      return data.data.results;
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching top playlists:', error);
+    return [];
+  }
+}
+
+export async function getPlaylistDetails(id: string): Promise<{ playlist: Playlist; songs: PlaylistSong[] } | null> {
+  try {
+    const response = await fetch(`${BASE_URL}/playlists/${id}`);
+    const data = await response.json();
+    if (data.success && data.data) {
+      return {
+        playlist: data.data,
+        songs: data.data.songs || []
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching playlist details:', error);
+    return null;
+  }
+}

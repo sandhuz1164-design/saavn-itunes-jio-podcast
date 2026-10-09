@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { searchPodcasts, getPodcastEpisodes, PodcastSearchResult, PodcastEpisode, getImageUrl } from './api/saavn';
+import { searchPodcasts, getPodcastEpisodes, PodcastSearchResult, PodcastEpisode, getImageUrl, getTopPlaylists, searchPlaylists, Playlist, PlaylistSong } from './api/saavn';
 import { getTopCharts, searchTracks, Track, getTopAlbums, searchAlbums, Album, searchPodcastsByCategory, PODCAST_CATEGORIES, ITunesPodcast } from './api/itunes';
 import PodcastCard from './components/PodcastCard';
 import EpisodeList from './components/EpisodeList';
@@ -10,9 +10,11 @@ import AlbumCard from './components/AlbumCard';
 import AlbumDetail from './components/AlbumDetail';
 import ITunesPodcastCard from './components/ITunesPodcastCard';
 import ITunesPodcastDetail from './components/ITunesPodcastDetail';
+import PlaylistCard from './components/PlaylistCard';
+import PlaylistDetail from './components/PlaylistDetail';
 
-type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail';
-type SearchType = 'podcasts' | 'songs' | 'albums';
+type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail' | 'playlist-detail';
+type SearchType = 'podcasts' | 'songs' | 'albums' | 'playlists';
 
 export default function App() {
   const [view, setView] = useState<View>('home');
@@ -49,12 +51,21 @@ export default function App() {
   const [categorizedPodcasts, setCategorizedPodcasts] = useState<Record<string, ITunesPodcast[]>>({});
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
 
-  // Load trending podcasts, top songs, top albums, and categorized podcasts on mount
+  // Playlist state
+  const [topPlaylists, setTopPlaylists] = useState<Playlist[]>([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [playlistResults, setPlaylistResults] = useState<Playlist[]>([]);
+  const [currentPlaylistSong, setCurrentPlaylistSong] = useState<PlaylistSong | null>(null);
+  const [showPlaylistPlayer, setShowPlaylistPlayer] = useState(false);
+
+  // Load trending podcasts, top songs, top albums, categorized podcasts, and playlists on mount
   useEffect(() => {
     loadTrending();
     loadTopSongs();
     loadTopAlbums();
     loadCategorizedPodcasts();
+    loadTopPlaylists();
   }, []);
 
   const loadTrending = async () => {
@@ -100,11 +111,19 @@ export default function App() {
     setIsLoadingCategories(false);
   };
 
+  const loadTopPlaylists = async () => {
+    setIsLoadingPlaylists(true);
+    const playlists = await getTopPlaylists(10);
+    setTopPlaylists(playlists);
+    setIsLoadingPlaylists(false);
+  };
+
   const handleSearch = useCallback(async (query: string, type: SearchType) => {
     if (!query.trim()) {
       setSearchResults([]);
       setSongResults([]);
       setAlbumResults([]);
+      setPlaylistResults([]);
       return;
     }
     setIsSearching(true);
@@ -116,16 +135,25 @@ export default function App() {
       setSearchResults(results);
       setSongResults([]);
       setAlbumResults([]);
+      setPlaylistResults([]);
     } else if (type === 'songs') {
       const results = await searchTracks(query, 10);
       setSongResults(results);
       setSearchResults([]);
       setAlbumResults([]);
+      setPlaylistResults([]);
     } else if (type === 'albums') {
       const results = await searchAlbums(query, 10);
       setAlbumResults(results);
       setSearchResults([]);
       setSongResults([]);
+      setPlaylistResults([]);
+    } else if (type === 'playlists') {
+      const results = await searchPlaylists(query, 0, 10);
+      setPlaylistResults(results);
+      setSearchResults([]);
+      setSongResults([]);
+      setAlbumResults([]);
     }
     setIsSearching(false);
   }, []);
@@ -194,12 +222,16 @@ export default function App() {
     } else if (view === 'itunes-podcast-detail') {
       setView('home');
       setSelectedITunesPodcast(null);
+    } else if (view === 'playlist-detail') {
+      setView('home');
+      setSelectedPlaylist(null);
     } else if (view === 'search') {
       setView('home');
       setSearchQuery('');
       setSearchResults([]);
       setSongResults([]);
       setAlbumResults([]);
+      setPlaylistResults([]);
     } else if (view === 'songs') {
       setView('home');
     }
@@ -211,7 +243,28 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const playerActive = showPlayer || showSongPlayer;
+  const handlePlaylistClick = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
+    setView('playlist-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePlayPlaylistSong = (song: PlaylistSong) => {
+    setCurrentPlaylistSong(song);
+    setShowPlaylistPlayer(true);
+    // Stop other players
+    setShowPlayer(false);
+    setShowSongPlayer(false);
+    setCurrentEpisode(null);
+    setCurrentSong(null);
+  };
+
+  const handleClosePlaylistPlayer = () => {
+    setShowPlaylistPlayer(false);
+    setCurrentPlaylistSong(null);
+  };
+
+  const playerActive = showPlayer || showSongPlayer || showPlaylistPlayer;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white">
@@ -289,6 +342,14 @@ export default function App() {
               >
                 Albums
               </button>
+              <button
+                onClick={() => setSearchType('playlists')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  searchType === 'playlists' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Playlists
+              </button>
             </div>
 
             {/* Search button */}
@@ -299,6 +360,8 @@ export default function App() {
                   ? 'bg-green-600 hover:bg-green-500' 
                   : searchType === 'albums'
                   ? 'bg-blue-600 hover:bg-blue-500'
+                  : searchType === 'playlists'
+                  ? 'bg-orange-600 hover:bg-orange-500'
                   : 'bg-purple-600 hover:bg-purple-500'
               }`}
             >
@@ -454,6 +517,66 @@ export default function App() {
               </p>
             </div>
 
+            {/* Top 10 Playlists Section */}
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+                    </svg>
+                  </div>
+                  Top 10 Playlists
+                </h2>
+                <button
+                  onClick={loadTopPlaylists}
+                  className="text-sm text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {isLoadingPlaylists ? (
+                  [...Array(10)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-gray-800/30 rounded-xl p-4">
+                      <div className="w-full aspect-square rounded-lg bg-gray-700 mb-3" />
+                      <div className="h-4 bg-gray-700 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-gray-700 rounded w-1/2" />
+                    </div>
+                  ))
+                ) : topPlaylists.length > 0 ? (
+                  topPlaylists.map((playlist) => (
+                    <PlaylistCard
+                      key={playlist.id}
+                      playlist={playlist}
+                      onClick={() => handlePlaylistClick(playlist)}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full p-8 text-center text-gray-400">
+                    <p>Unable to load playlists. Please try again.</p>
+                    <button
+                      onClick={loadTopPlaylists}
+                      className="mt-3 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm text-white transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                Click on a playlist to view songs • Data from JioSaavn
+              </p>
+            </div>
+
             {/* Categorized Podcasts - 110 podcasts across 12 categories */}
             <div className="mb-12">
               <div className="flex items-center justify-between mb-6">
@@ -585,7 +708,7 @@ export default function App() {
             )}
 
             {/* Info Section */}
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-6 rounded-2xl bg-gradient-to-r from-purple-900/20 to-gray-900/50 border border-purple-800/30">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-lg bg-purple-600 flex items-center justify-center">
@@ -623,6 +746,19 @@ export default function App() {
                 </div>
                 <p className="text-gray-400 text-sm">
                   Browse top albums with full track listings. Click on any album to explore its tracks and play previews.
+                </p>
+              </div>
+              <div className="p-6 rounded-2xl bg-gradient-to-r from-orange-900/20 to-gray-900/50 border border-orange-800/30">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">JioSaavn Playlists</h3>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  Curated playlists from JioSaavn with full song listings. Click on any playlist to browse and play songs.
                 </p>
               </div>
             </div>
@@ -672,10 +808,18 @@ export default function App() {
               >
                 Albums
               </button>
+              <button
+                onClick={() => handleSearch(searchQuery, 'playlists')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  searchType === 'playlists' ? 'bg-orange-600 text-white' : 'bg-gray-800 text-gray-400'
+                }`}
+              >
+                Playlists
+              </button>
             </div>
 
             {isSearching ? (
-              searchType === 'podcasts' || searchType === 'albums' ? (
+              searchType === 'podcasts' || searchType === 'albums' || searchType === 'playlists' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {[...Array(10)].map((_, i) => (
                     <div key={i} className="animate-pulse bg-gray-800/30 rounded-xl p-4">
@@ -763,6 +907,33 @@ export default function App() {
                   </svg>
                   <p className="text-xl text-gray-400">No albums found</p>
                   <p className="text-gray-500 mt-2">Try searching for a different artist or album</p>
+                </div>
+              )
+            ) : searchType === 'playlists' ? (
+              playlistResults.length > 0 ? (
+                <div>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-400">
+                      Found {playlistResults.length} playlists
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {playlistResults.map((playlist) => (
+                      <PlaylistCard
+                        key={playlist.id}
+                        playlist={playlist}
+                        onClick={() => handlePlaylistClick(playlist)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <svg className="w-20 h-20 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
+                  </svg>
+                  <p className="text-xl text-gray-400">No playlists found</p>
+                  <p className="text-gray-500 mt-2">Try searching for a different topic or mood</p>
                 </div>
               )
             ) : (
@@ -890,6 +1061,17 @@ export default function App() {
             onBack={handleBack}
           />
         )}
+
+        {/* Playlist Detail View */}
+        {view === 'playlist-detail' && selectedPlaylist && (
+          <PlaylistDetail
+            playlist={selectedPlaylist}
+            onBack={handleBack}
+            onPlaySong={handlePlayPlaylistSong}
+            currentSong={currentPlaylistSong}
+            isPlaying={showPlaylistPlayer}
+          />
+        )}
       </main>
 
       {/* Podcast Audio Player */}
@@ -905,6 +1087,25 @@ export default function App() {
         <SongPlayer
           track={currentSong}
           onClose={handleCloseSongPlayer}
+        />
+      )}
+
+      {/* Playlist Song Player */}
+      {showPlaylistPlayer && currentPlaylistSong && (
+        <AudioPlayer
+          episode={{
+            id: currentPlaylistSong.id,
+            name: currentPlaylistSong.name,
+            type: 'song',
+            year: currentPlaylistSong.year,
+            duration: currentPlaylistSong.duration,
+            language: currentPlaylistSong.language,
+            url: currentPlaylistSong.url,
+            image: currentPlaylistSong.image,
+            downloadUrl: currentPlaylistSong.downloadUrl,
+            artists: currentPlaylistSong.artists,
+          }}
+          onClose={handleClosePlaylistPlayer}
         />
       )}
     </div>
