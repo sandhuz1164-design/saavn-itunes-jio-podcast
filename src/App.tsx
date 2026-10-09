@@ -9,8 +9,9 @@ import SongPlayer from './components/SongPlayer';
 import AlbumCard from './components/AlbumCard';
 import AlbumDetail from './components/AlbumDetail';
 import ITunesPodcastCard from './components/ITunesPodcastCard';
+import ITunesPodcastDetail from './components/ITunesPodcastDetail';
 
-type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail';
+type View = 'home' | 'search' | 'podcast-detail' | 'songs' | 'album-detail' | 'itunes-podcast-detail';
 type SearchType = 'podcasts' | 'songs' | 'albums';
 
 export default function App() {
@@ -40,6 +41,9 @@ export default function App() {
   const [albumResults, setAlbumResults] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
+
+  // iTunes Podcast state
+  const [selectedITunesPodcast, setSelectedITunesPodcast] = useState<ITunesPodcast | null>(null);
 
   // Categorized podcasts state
   const [categorizedPodcasts, setCategorizedPodcasts] = useState<Record<string, ITunesPodcast[]>>({});
@@ -187,6 +191,9 @@ export default function App() {
     } else if (view === 'album-detail') {
       setView('search');
       setSelectedAlbum(null);
+    } else if (view === 'itunes-podcast-detail') {
+      setView('home');
+      setSelectedITunesPodcast(null);
     } else if (view === 'search') {
       setView('home');
       setSearchQuery('');
@@ -196,6 +203,12 @@ export default function App() {
     } else if (view === 'songs') {
       setView('home');
     }
+  };
+
+  const handleITunesPodcastClick = (podcast: ITunesPodcast) => {
+    setSelectedITunesPodcast(podcast);
+    setView('itunes-podcast-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const playerActive = showPlayer || showSongPlayer;
@@ -500,7 +513,7 @@ export default function App() {
                             <ITunesPodcastCard
                               key={podcast.collectionId}
                               podcast={podcast}
-                              onClick={() => window.open(podcast.collectionViewUrl, '_blank')}
+                              onClick={() => handleITunesPodcastClick(podcast)}
                             />
                           ))}
                         </div>
@@ -867,6 +880,14 @@ export default function App() {
             onPlayTrack={handlePlaySong}
             currentTrack={currentSong}
             isPlaying={showSongPlayer}
+          />
+        )}
+
+        {/* iTunes Podcast Detail View */}
+        {view === 'itunes-podcast-detail' && selectedITunesPodcast && (
+          <ITunesPodcastDetail
+            podcast={selectedITunesPodcast}
+            onBack={handleBack}
           />
         )}
       </main>

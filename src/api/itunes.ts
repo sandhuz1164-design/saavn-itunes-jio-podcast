@@ -208,6 +208,50 @@ export async function searchAllPodcasts(query: string, limit = 20): Promise<ITun
   }
 }
 
+export interface PodcastEpisodeITunes {
+  wrapperType: string;
+  kind: string;
+  collectionId: number;
+  trackId: number;
+  artistName: string;
+  collectionName: string;
+  trackName: string;
+  collectionCensoredName: string;
+  trackCensoredName: string;
+  collectionViewUrl: string;
+  feedUrl: string;
+  trackViewUrl: string;
+  artworkUrl30: string;
+  artworkUrl60: string;
+  artworkUrl100: string;
+  artworkUrl600?: string;
+  releaseDate: string;
+  collectionExplicitness: string;
+  trackExplicitness: string;
+  trackCount: number;
+  trackNumber: number;
+  trackTimeMillis: number;
+  country: string;
+  currency: string;
+  primaryGenreName: string;
+  previewUrl?: string;
+  description?: string;
+}
+
+export async function getPodcastEpisodesITunes(collectionId: number): Promise<PodcastEpisodeITunes[]> {
+  try {
+    const response = await fetch(
+      `${ITUNES_BASE_URL}/lookup?id=${collectionId}&entity=podcastEpisode&limit=200`
+    );
+    const data = await response.json();
+    // Filter to only episodes (not the podcast itself)
+    return (data.results || []).filter((item: any) => item.wrapperType === 'podcastEpisode') as PodcastEpisodeITunes[];
+  } catch (error) {
+    console.error('Error fetching podcast episodes:', error);
+    return [];
+  }
+}
+
 export const PODCAST_CATEGORIES = [
   { name: 'Technology', emoji: '💻', color: 'from-blue-600 to-cyan-600' },
   { name: 'Business', emoji: '💼', color: 'from-amber-600 to-orange-600' },
